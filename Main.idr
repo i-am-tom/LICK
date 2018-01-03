@@ -131,14 +131,9 @@ ContextToHList [] = ()
 ContextToHList (x :: xs)
   = (ProgramTypeToType x, ContextToHList xs)
 
-VariableToType : (context : Context) -> Elem x context -> Type
-VariableToType (x :: xs) elem with (elem)
-  | Here          = ProgramTypeToType x
-  | (There later) = VariableToType xs later
-
-get : (context : Context) -> (index : Elem x context) -> VariableToType context index
-get (head :: _) Here = ProgramTypeToType head
-get (_ :: tail) (There later) = get tail later
+ContextReferenceToType : (context : Context) -> (index : Elem x context) -> Type
+ContextReferenceToType (head :: _) Here = ProgramTypeToType head
+ContextReferenceToType (_ :: tail) (There later) = ContextReferenceToType tail later
 
 eval
    : {context : Context}
@@ -146,7 +141,7 @@ eval
   -> Expr context programType
   -> ProgramTypeToType programType
 eval context (Var reference)
-  = get context reference
+  = ?toBeLunched
 eval context (Abs parameter body)
   = \x => eval (x, context) body
 eval context (App function argument)
