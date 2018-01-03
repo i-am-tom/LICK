@@ -75,11 +75,9 @@ shrink2 Here (There later) x = Here
 shrink2 (There later) Here x = later
 shrink2 (There later) (There y) x = There (shrink2 later y (x . cong))
 
-baitAndSwitch : (idx : Elem y xs) -> Elem x (dropElem (p :: xs) (There idx)) -> Elem x (p :: dropElem xs idx)
-baitAndSwitch Here Here = Here
-baitAndSwitch Here (There later) = There later
-baitAndSwitch (There later) Here = Here
-baitAndSwitch (There later) (There x) = There x
+baitAndSwitch : Elem x (dropElem (p :: xs) (There idx)) -> Elem x (p :: dropElem xs idx)
+baitAndSwitch Here = Here
+baitAndSwitch (There later) = There later
 
 help : Expr (a :: b :: c) t -> Expr (b :: a :: c) t
 help (Var Here) = Var (There Here)
