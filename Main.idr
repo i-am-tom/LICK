@@ -91,10 +91,6 @@ expandContext (Var reference) = Var (There reference)
 expandContext (Abs parameter body) = Abs parameter (help (expandContext body))
 expandContext (App function argument) = App (expandContext function) (expandContext argument)
 
-evalType : ProgramType -> Type
-evalType (PFunction x y) = evalType x -> evalType y
-evalType PUnit = ()
-
 {-
 substitute : (reference : Elem argType context) -> (body : Expr context programType) -> (argument : Expr (dropElem context reference) argType) -> Expr (dropElem context reference) programType
 substitute {argType} {programType} reference (Var x) argument with (decEq programType argType)
@@ -124,12 +120,38 @@ reduce irreducible
   = irreducible
 -}
 
-{-
-eval : Expr context t -> evalType t
-eval (Var reference) = ?eval_rhs_1
-eval (Abs parameter body) = eval body
-eval (App function argument) = eval function (eval argument)
--}
+ProgramTypeToType : ProgramType -> Type
+ProgramTypeToType (PFunction x y)
+  = ProgramTypeToType x -> ProgramTypeToType y
+ProgramTypeToType PUnit
+  = ()
+
+ContextToHList : Context -> Type
+ContextToHList [] = ()
+ContextToHList (x :: xs)
+  = (ProgramTypeToType x, ContextToHList xs)
+
+VariableToType : (context : Context) -> Elem x context -> Type
+VariableToType (x :: xs) elem with (elem)
+  | Here          = ProgramTypeToType x
+  | (There later) = VariableToType xs later
+
+get : (context : Context) -> (index : Elem x context) -> VariableToType context index
+get (head :: _) Here = ProgramTypeToType head
+get (_ :: tail) (There later) = get tail later
+
+eval
+   : {context : Context}
+  -> ContextToHList context
+  -> Expr context programType
+  -> ProgramTypeToType programType
+eval context (Var reference)
+  = get context reference
+eval context (Abs parameter body)
+  = \x => eval (x, context) body
+eval context (App function argument)
+  = eval context function (eval context argument)
+
 
 
 -- Examples
