@@ -79,19 +79,27 @@ baitAndSwitch : Elem x (dropElem (p :: xs) (There idx)) -> Elem x (p :: dropElem
 baitAndSwitch Here = Here
 baitAndSwitch (There later) = There later
 
-help : Expr (a :: b :: c) t -> Expr (b :: a :: c) t
-help (Var Here) = Var (There Here)
-help (Var (There Here)) = Var Here
-help (Var (There (There x))) = Var (There (There x))
-help (Abs parameter body) = Abs parameter ?what
-help (App function argument) = ?help_rhs_3
+varHelp : (bound : Context) -> Elem t (bound ++ free) -> Elem t (bound ++ a :: free)
+varHelp [] Here = There Here
+varHelp [] (There later) = There (There later)
+varHelp (x :: xs) Here = Here
+varHelp (x :: xs) (There later) = There (varHelp xs later)
 
-expandContext : Expr context programType -> Expr (p :: context) programType
-expandContext (Var reference) = Var (There reference)
-expandContext (Abs parameter body) = Abs parameter (help (expandContext body))
-expandContext (App function argument) = App (expandContext function) (expandContext argument)
+help : (bound : Context) -> Expr (bound ++ c) t -> Expr (bound ++ a :: c) t
+help bound (Var exs) = Var (varHelp bound exs)
+help bound (Abs parameter body) = Abs parameter (help (parameter :: bound) body)
+help bound (App function argument) = App (help bound function) (help bound argument)
 
-{-
+ndSwitch : Expr (dropElem (p :: xs) (There idx)) t -> Expr (p :: dropElem xs idx) t
+ndSwitch (Var reference) = Var (baitAndSwitch reference)
+ndSwitch (Abs parameter body) = Abs parameter body
+ndSwitch (App function argument) = App (ndSwitch function) (ndSwitch argument)
+
+switchNd : Expr (p :: dropElem xs idx) t -> Expr (dropElem (p :: xs) (There idx)) t
+switchNd (Var reference) = Var reference
+switchNd (Abs parameter body) = Abs parameter body
+switchNd (App function argument) = App (switchNd function) (switchNd argument)
+
 substitute : (reference : Elem argType context) -> (body : Expr context programType) -> (argument : Expr (dropElem context reference) argType) -> Expr (dropElem context reference) programType
 substitute {argType} {programType} reference (Var x) argument with (decEq programType argType)
   substitute {argType = programType} {programType = programType} reference (Var x) argument | (Yes Refl)  with (decEqElem x reference)
@@ -99,26 +107,25 @@ substitute {argType} {programType} reference (Var x) argument with (decEq progra
     substitute {argType = programType} {programType = programType} reference (Var x) argument | (Yes Refl)  | (No contra) = Var (shrink2 x reference contra)
   substitute {argType = argType} {programType = programType} reference (Var x) argument     | (No contra) = Var (shrinkContext reference x contra)
 substitute reference (Abs parameter body) argument
-  = Abs parameter (substitute ?aoeu ?body (?test))
-  -- = Abs parameter (?hahsubstitute (?there reference) body argument)
+  = Abs parameter (ndSwitch (substitute (There reference) body (switchNd (help [] argument))))
 substitute reference (App function x) argument
   = App (substitute reference function argument)
         (substitute reference x        argument)
-        -}
 
-{-
+reduceApp : Expr context (PFunction i o) -> Expr context i -> Expr context o
+reduceApp (Var reference) y = App (Var reference) y
+reduceApp (App function argument) y = App (App function argument) y
+reduceApp (Abs parameter body) argument = substitute Here body argument
+
 reduce : Expr context programType -> Expr context programType
 reduce (Abs parameter body)
   = Abs parameter (reduce body)
 reduce (App function argument)
   with (reduce function, reduce argument)
-    | (Abs parameter body, argument')
-        = reduce (substitute Here body argument')
     | (function', argument')
-        = App function' argument'
-reduce irreducible
-  = irreducible
--}
+        = reduceApp function' argument'
+reduce (Var x)
+  = Var x
 
 ProgramTypeToType : ProgramType -> Type
 ProgramTypeToType (PFunction x y)
@@ -135,13 +142,17 @@ ContextReferenceToType : (context : Context) -> (index : Elem x context) -> Type
 ContextReferenceToType (head :: _) Here = ProgramTypeToType head
 ContextReferenceToType (_ :: tail) (There later) = ContextReferenceToType tail later
 
+lookupVar : Elem t xs -> ContextToHList xs -> ProgramTypeToType t
+lookupVar Here (a, b) = a
+lookupVar (There later) (a, b) = lookupVar later b
+
 eval
    : {context : Context}
   -> ContextToHList context
   -> Expr context programType
   -> ProgramTypeToType programType
 eval context (Var reference)
-  = ?toBeLunched
+  = lookupVar reference context
 eval context (Abs parameter body)
   = \x => eval (x, context) body
 eval context (App function argument)
@@ -151,15 +162,21 @@ eval context (App function argument)
 
 -- Examples
 
-eg0 : Expr context (PFunction PUnit PUnit)
-eg0 = Abs PUnit (Var Here)
+Eg0 : Expr context (PFunction PUnit PUnit)
+Eg0 = Abs PUnit (Var Here)
 
-eg1 : Expr context (PFunction PUnit PUnit)
-eg1 = Abs PUnit (App eg0 (Var Here))
+Eg1 : Expr context (PFunction PUnit PUnit)
+Eg1 = Abs PUnit (App Eg0 (Var Here))
 
 id : Expr context (PFunction a a)
 id {a} = Abs a (Var Here)
 
 const : Expr context (PFunction a (PFunction b a))
 const {a} {b} = Abs a (Abs b (Var (There Here)))
+
+prf : reduce (Eg1 {context = []}) = Eg0 {context = []}
+prf = Refl
+
+prf2 : eval {context = []} () Eg1 = eval {context = []} () Eg0
+prf2 = Refl
 
