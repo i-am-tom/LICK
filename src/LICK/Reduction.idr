@@ -258,13 +258,14 @@ reduce (App function argument)
 
 --- Tests
 
-Eg0 : Expr context (PFunction PUnit PUnit)
-Eg0 = Abs PUnit (Var Here)
+Eg0 : Expr context (PFunction PInt PInt)
+Eg0 = Abs PInt (Var Here)
 
-Eg1 : Expr context (PFunction PUnit PUnit)
-Eg1 = Abs PUnit (App Eg0 (Var Here))
+Eg1 : Expr context (PFunction PInt PInt)
+Eg1 = Abs PInt (App Eg0 (Var Here))
 
 
+||| Reduce on irreducible structures is identity.
 irreducible
   : reduce (Eg0 {context = []})
   = Eg0 {context = []}
@@ -273,6 +274,7 @@ irreducible
   = Refl
 
 
+||| Reducible structures are reduced.
 reducible
   : reduce (Eg1 {context = []})
   = Eg0 {context = []}

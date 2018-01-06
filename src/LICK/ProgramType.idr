@@ -14,8 +14,8 @@ data ProgramType : Type where
     -> (output : ProgramType)
     -> ProgramType
 
-  ||| The unit type.
-  PUnit : ProgramType
+  ||| The integer type.
+  PInt : ProgramType
 
 
 ||| If the domains don't match, the functions definitely don't.
@@ -36,22 +36,22 @@ codomainsDoNotMatch f Refl
   = f Refl
 
 
-||| A function is not a unit.
-functionIsNotUnit
-  : Not (PFunction i o = PUnit)
+||| A function is not an integer.
+functionIsNotInt
+  : Not (PFunction i o = PInt)
 
-functionIsNotUnit Refl impossible
+functionIsNotInt Refl impossible
 
 
 ||| Decidable equality on program types.
 public export
 implementation DecEq ProgramType where
-  decEq PUnit PUnit
+  decEq PInt PInt
     = Yes Refl
-  decEq PUnit (PFunction i o)
-    = No (functionIsNotUnit . sym)
-  decEq (PFunction i o) PUnit
-    = No functionIsNotUnit
+  decEq PInt (PFunction i o)
+    = No (functionIsNotInt . sym)
+  decEq (PFunction i o) PInt
+    = No functionIsNotInt
   decEq (PFunction i o) (PFunction i' o')
     with (decEq i i', decEq o o')
       decEq (PFunction i o) (PFunction i o)

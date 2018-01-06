@@ -18,8 +18,8 @@ ProgramTypeToType (PFunction x y)
    = ProgramTypeToType x
   -> ProgramTypeToType y
 
-ProgramTypeToType PUnit
-  = ()
+ProgramTypeToType PInt
+  = Int
 
 
 ||| Convert a Context to a nested tuple HList of Idris-equivalent
@@ -64,4 +64,36 @@ eval context (Abs parameter body)
   = \x => eval (x, context) body
 eval context (App function argument)
   = eval context function (eval context argument)
+
+
+-- Tests
+
+
+Apply2
+  : Expr context
+      (PFunction
+        (PFunction a a)
+        (PFunction a a))
+Apply2 {a}
+  = Abs (PFunction a a)
+        (Abs a (App (Var (There Here))
+                    (Var Here)))
+
+Eg0
+  : eval {context = []} ()
+         (Apply2 {a = PInt})
+         (+ 1) 5
+  = 6
+
+Eg0
+  = Refl
+
+
+Eg1
+  : eval {context = [PInt, PFunction PInt PInt]} (3, ((+1), ()))
+         (App (Var (There Here)) (Var Here))
+  = 4
+
+Eg1
+  = Refl
 
