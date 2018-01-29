@@ -7,56 +7,6 @@ import LICK.ProgramType
 
 %default total
 
-
-||| The constructors don't match.
-hereIsNotThere
-  : Not (Here = There later)
-
-hereIsNotThere Refl impossible
-
-
-||| The tails of the `There`s don't match.
-tailMismatch
-   : Not (      l =       r)
-  -> Not (There l = There r)
-
-
-tailMismatch f Refl
-  = f Refl
-
-
-tailMatch : (l = r) -> (There l = There r)
-tailMatch Refl = Refl
-
-
-||| Decidable equality for Elem. It has been added to the Data.List
-||| library, but it needs a version bump.
-decEqElem
-   : (l, r : Elem x xs)
-  -> Dec (l = r)
-
-decEqElem Here Here
-  = Yes Refl
-
-decEqElem Here (There later)
-  = No hereIsNotThere
-
-decEqElem (There later) Here
-  = No (hereIsNotThere . sym)
-
-decEqElem (There l) (There r)
-  with (decEqElem l r)
-    decEqElem (There r) (There r)
-      | Yes Refl
-      = Yes Refl
-    decEqElem (There l) (There r)
-      | No               contra
-      = No (tailMismatch contra)
-
-
----
-
-
 ||| If two references are not equal, removing one referenced element
 ||| from the list won't remove the other.
 independentRefs
@@ -208,7 +158,7 @@ substitute {argType} {programType} reference (Var referenced) argument
     with (decEq programType argType)
   substitute {argType = programType} reference (Var referenced) argument
     | (Yes Refl)
-          with (decEqElem referenced reference)
+          with (decEq referenced reference)
         substitute referenced (Var referenced) argument
           | (Yes Refl)
           | (Yes Refl)
@@ -248,12 +198,10 @@ reduce (Var x)
 
 reduce (App function argument)
   with (reduce function, reduce argument)
-    | (Var reference, argument')
-        = App (Var reference) argument'
     | (Abs parameter body, argument')
         = substitute Here body argument'
-    | (innerFunction, argument')
-        = App innerFunction argument'
+    | (function', argument')
+        = App function' argument'
 
 
 --- Tests
