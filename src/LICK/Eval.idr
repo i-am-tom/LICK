@@ -56,13 +56,13 @@ export
 eval
    : {context : Context}
   -> ContextToHList context
-  -> Expr context programType
+  -> Expression context programType
   -> ProgramTypeToType programType
-eval context (Var reference)
+eval context (Variable reference)
   = get reference context
-eval context (Abs parameter body)
+eval context (Abstraction parameter body)
   = \x => eval (x, context) body
-eval context (App function argument)
+eval context (Application function argument)
   = eval context function (eval context argument)
 
 
@@ -70,14 +70,15 @@ eval context (App function argument)
 
 
 Apply2
-  : Expr context
+  : Expression context
       (PFunction
         (PFunction a a)
         (PFunction a a))
 Apply2 {a}
-  = Abs (PFunction a a)
-        (Abs a (App (Var (There Here))
-                    (Var Here)))
+  = Abstraction
+      (PFunction a a)
+      (Abstraction a (Application (Variable (There Here))
+                                  (Variable Here)))
 
 Eg0
   : eval {context = []} ()
@@ -91,7 +92,7 @@ Eg0
 
 Eg1
   : eval {context = [PInt, PFunction PInt PInt]} (3, ((+1), ()))
-         (App (Var (There Here)) (Var Here))
+         (Application (Variable (There Here)) (Variable Here))
   = 4
 
 Eg1

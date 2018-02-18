@@ -23,9 +23,8 @@ independentRefs Here (There later) prf
 independentRefs (There later) Here prf
   = later
 
-independentRefs (There later) (There y) prf
-  = There (independentRefs later y (prf . cong))
-
+independentRefs (There this) (There that) prf
+  = There (independentRefs this that (prf . cong))
 
 ||| If different _values_ are referenced, the references are
 ||| definitely not equal.
@@ -48,22 +47,6 @@ independentValues (There x) (There later) prf
   = There (independentValues x later prf)
 
 
-||| Because `dropElem` isn't expanded during type-checking, we have
-||| to "work around" it a little bit. This proof states that, if I
-||| had a reference to an element (_not_ at the head) in a filtered
-||| p :: xs, I can produce a reference to an element in a filtered
-||| xs with a p at the head.
-reassociateDrop
-   : Elem x (dropElem (p :: xs) (There idx))
-  -> Elem x (p :: dropElem xs idx)
-
-reassociateDrop Here
-  = Here
-
-reassociateDrop (There later)
-  = There later
-
-
 ||| Any given abstraction will have a number of variables in scope,
 ||| as well as a number that are "free". This proof states that we
 ||| can insert a value between those two partitions and update the
@@ -73,16 +56,13 @@ expandElemContext
   -> Elem t (bound ++      free)
   -> Elem t (bound ++ a :: free)
 
-expandElemContext [] Here
-  = There Here
+expandElemContext [] ref
+  = There ref
 
-expandElemContext [] (There free)
-  = There (There free)
-
-expandElemContext bound@(_ :: _) Here
+expandElemContext (_ :: _) Here
   = Here
 
-expandElemContext bound@(_ :: xs) (There later)
+expandElemContext (_ :: xs) (There later)
   = There (expandElemContext xs later)
 
 
@@ -90,94 +70,54 @@ expandElemContext bound@(_ :: xs) (There later)
 ||| values, rather than individual `Elem` proofs.
 expandContext
    : (bound : Context)
-  -> Expr (bound ++      free) t
-  -> Expr (bound ++ a :: free) t
+  -> Expression (bound ++      free) t
+  -> Expression (bound ++ a :: free) t
 
-expandContext bound (Var exs)
-  = Var (expandElemContext bound exs)
+expandContext bound (Application function argument)
+  = Application (expandContext bound function)
+                (expandContext bound argument)
 
-expandContext bound (Abs parameter body)
-  = Abs parameter (expandContext (parameter :: bound) body)
+expandContext bound (Abstraction parameter body)
+  = Abstraction parameter (expandContext (parameter :: bound) body)
 
-expandContext bound (App function argument)
-  = App (expandContext bound function)
-        (expandContext bound argument)
-
-
-||| In order to  apply reduction recursively, we need to be able to
-||| reassociate the head of the filtered list. This function allows
-||| us to transform an expression with a function on the reassociated
-||| context.
-withReassociatedDrop
-   : ( Expr (dropElem (x :: xs) (There this)) a
-    -> Expr (dropElem (y :: xs) (There that)) b
-     )
-  -> Expr (x :: dropElem xs this) a
-  -> Expr (y :: dropElem xs that) b
-
-withReassociatedDrop function
-  = to . function . from
-  where
-
-    from
-       : Expr (dropElem (p :: xs) (There idx)) programType
-      -> Expr (p :: dropElem xs idx) programType
-
-    from (Var reference)
-      = Var (reassociateDrop reference)
-
-    from (Abs parameter body)
-      = Abs parameter body
-
-    from (App function argument)
-      = App (from function) (from argument)
-
-
-    to
-       : Expr (p :: dropElem xs idx) programType
-      -> Expr (dropElem (p :: xs) (There idx)) programType
-    to (Var reference)
-      = Var reference
-
-    to (Abs parameter body)
-      = Abs parameter body
-
-    to (App function argument)
-      = App (to function) (to argument)
+expandContext bound (Variable ref)
+  = Variable (expandElemContext bound ref)
 
 
 ||| Substitute a given argument into a given body in place of a given
 ||| reference. There's quite a lot of type-fiddling to be done.
 substitute
    : (reference : Elem argType context)
-  -> (body      : Expr context programType)
-  -> (argument  : Expr (dropElem context reference) argType)
-  -> Expr (dropElem context reference) programType
+  -> (body      : Expression context programType)
+  -> (argument  : Expression (dropElem context reference) argType)
+  -> Expression (dropElem context reference) programType
 
-substitute {argType} {programType} reference (Var referenced) argument
+substitute {argType} {programType} reference (Variable referenced) argument
     with (decEq programType argType)
-  substitute {argType = programType} reference (Var referenced) argument
+  substitute {argType = programType} reference (Variable referenced) argument
     | (Yes Refl)
           with (decEq referenced reference)
-        substitute referenced (Var referenced) argument
+        substitute referenced (Variable referenced) argument
           | (Yes Refl)
           | (Yes Refl)
           = argument
-        substitute reference (Var referenced) argument
+        substitute reference (Variable referenced) argument
           | (Yes Refl)
           | (No contra)
-          = Var (independentRefs referenced reference contra)
-  substitute reference (Var referenced) argument
+          = Variable (independentRefs referenced reference contra)
+  substitute reference (Variable referenced) argument
     | (No contra)
-    = Var (independentValues referenced reference contra)
+    = Variable (independentValues referenced reference contra)
 
-substitute reference (Abs parameter body) argument
-  = Abs parameter (withReassociatedDrop (substitute (There reference) body)
-                                        (expandContext [] argument))
+substitute reference (Abstraction parameter body) argument
+  = Abstraction
+      parameter
+      (substitute (There reference) body (expandContext [] argument))
 
-substitute reference (App function x) argument
-  = App (substitute reference function argument)
-        (substitute reference x        argument)
+substitute reference (Application function x) argument
+  = Application
+      (substitute reference function argument)
+      (substitute reference x        argument)
 
 
 ||| Apply β-reduction to the given expression. This won't change
@@ -187,30 +127,30 @@ substitute reference (App function x) argument
 ||| the abstraction.
 public export
 reduce
-   : Expr context programType
-  -> Expr context programType
+   : Expression context programType
+  -> Expression context programType
 
-reduce (Abs parameter body)
-  = Abs parameter (reduce body)
+reduce (Abstraction parameter body)
+  = Abstraction parameter (reduce body)
 
-reduce (Var x)
-  = Var x
+reduce (Variable ref)
+  = Variable ref
 
-reduce (App function argument)
+reduce (Application function argument)
   with (reduce function, reduce argument)
-    | (Abs parameter body, argument')
+    | (Abstraction parameter body, argument')
         = substitute Here body argument'
     | (function', argument')
-        = App function' argument'
+        = Application function' argument'
 
 
 --- Tests
 
-Eg0 : Expr context (PFunction PInt PInt)
-Eg0 = Abs PInt (Var Here)
+Eg0 : Expression context (PFunction PInt PInt)
+Eg0 = Abstraction PInt (Variable Here)
 
-Eg1 : Expr context (PFunction PInt PInt)
-Eg1 = Abs PInt (App Eg0 (Var Here))
+Eg1 : Expression context (PFunction PInt PInt)
+Eg1 = Abstraction PInt (Application Eg0 (Variable Here))
 
 
 ||| Reduce on irreducible structures is identity.
@@ -228,4 +168,39 @@ reducible
   = Eg0 {context = []}
 
 reducible
+  = Refl
+
+---
+
+||| Example from the blog series.
+Test : Expression (x :: context) x
+Test {x}
+  = Application
+      ( Abstraction
+          x
+          ( Application
+              ( Abstraction
+                  x
+                  ( Application
+                      ( Abstraction
+                          x
+                          ( Variable Here
+                          )
+                      )
+                      ( Variable Here
+                      )
+                  )
+              )
+              ( Variable Here
+              )
+          )
+      )
+      ( Variable Here
+      )
+
+allClear
+  : reduce (Test {context = []} {x = PInt})
+  = Variable Here
+
+allClear
   = Refl

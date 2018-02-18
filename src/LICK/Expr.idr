@@ -19,22 +19,25 @@ Context = List ProgramType
 ||| constructors and use the GADT to manage the changes to the
 ||| context.
 public export
-data Expr : (context : Context) -> ProgramType -> Type where
+data Expression : (context : Context) -> ProgramType -> Type where
 
   ||| A reference to a bound variable. Free variables are expressed
   ||| by using an explicit initial context.
-  Var : (reference : Elem programType context)
-     -> Expr context programType
+  Variable
+     : (reference : Elem programType context)
+    -> Expression context programType
 
   ||| A function abstraction from a value of the given parameter
   ||| type. The body is an expression for which the parameter is in
   ||| scope.
-  Abs : (parameter : ProgramType)
-     -> (body      : Expr (parameter :: context) programType)
-     -> Expr context (PFunction parameter programType)
+  Abstraction
+     : (parameter : ProgramType)
+    -> (body      : Expression (parameter :: context) programType)
+    -> Expression context (PFunction parameter programType)
 
   ||| Function application. Apply the given function-typed expression
   ||| to an expression of the parameter type.
-  App : (function : Expr context (PFunction parameter return))
-     -> (argument : Expr context parameter)
-     -> Expr context return
+  Application
+     : (function : Expression context (PFunction parameter return))
+    -> (argument : Expression context parameter)
+    -> Expression context return
