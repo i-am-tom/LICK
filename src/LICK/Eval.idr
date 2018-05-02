@@ -1,5 +1,6 @@
 module LICK.Eval
 
+import Data.HVect
 import Data.List
 
 import LICK.Expr
@@ -25,43 +26,42 @@ ProgramTypeToType PInt
 ||| Convert a Context to a nested tuple HList of Idris-equivalent
 ||| types. Like an unindexed HVect.
 public export
-ContextToHList
-   : Context
-  -> Type
-ContextToHList []
-  = ()
+ContextTypes
+   : (context : Context)
+  -> Vect (length context) Type
 
-ContextToHList (x :: xs)
-  = ( ProgramTypeToType x
-    , ContextToHList xs
-    )
+ContextTypes []
+  = []
+
+ContextTypes (x :: xs)
+   = ProgramTypeToType x
+  :: ContextTypes xs
 
 
 ||| Retrieve a value from the currently working program context.
-export
 get
    : Elem programType context
-  -> ContextToHList context
+  -> HVect (ContextTypes context)
   -> ProgramTypeToType programType
 
-get Here (value, _)
-  = value
+get Here (head :: _)
+  = head
 
-get (There later) (_, value)
-  = get later value
+get (There later) (_ :: tail)
+  = get later tail
 
 
 ||| Evaluate a program within a given context.
 export
 eval
    : {context : Context}
-  -> ContextToHList context
+  -> HVect (ContextTypes context)
   -> Expression context programType
   -> ProgramTypeToType programType
 eval context (Variable reference)
   = get reference context
 eval context (Abstraction parameter body)
-  = \x => eval (x, context) body
+  = \x => eval (x :: context) body
 eval context (Application function argument)
   = eval context function (eval context argument)
 
@@ -81,7 +81,7 @@ Apply2 {a}
                                   (Variable Here)))
 
 Eg0
-  : eval {context = []} ()
+  : eval {context = []} []
          (Apply2 {a = PInt})
          (+ 1) 5
   = 6
@@ -91,10 +91,9 @@ Eg0
 
 
 Eg1
-  : eval {context = [PInt, PFunction PInt PInt]} (3, ((+1), ()))
+  : eval {context = [PInt, PFunction PInt PInt]} [3, (+1)]
          (Application (Variable (There Here)) (Variable Here))
   = 4
 
 Eg1
   = Refl
-
